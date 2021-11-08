@@ -14,7 +14,7 @@ PERSONAL_KEYS = {
 
 @app.route('/get_key/<string:requester>/<string:name>/')
 def get_key(requester, name):  # put application's code here
-    session_key = bytes(''.join([str(random.randint(0, 1)) for _ in range(64)]), 'ascii')
+    session_key = bytes(''.join([str(random.randint(0, 1)) for _ in range(k_len)]), 'ascii')
 
     print(PERSONAL_KEYS)
     print("Session key: ", session_key.decode("ascii"))

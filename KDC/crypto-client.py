@@ -1,5 +1,5 @@
+import json
 from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 from Crypto.Util.Padding import pad, unpad
 import socket
 import requests
@@ -7,12 +7,12 @@ import base64
 
 
 class Client:
-    PORT = 5000
-    HOST = '127.0.0.1'
+    # PORT = 6666
+    URL_BOB = 'http://127.0.0.1:6666/msg/'
     URL = 'http://localhost:5000/get_key/alice/bob/'
 
     KEY_A = bytes("01010101010101010101010101010101", "ascii")
-    KEY_K = get_random_bytes(256)
+    KEY_K = ""
     # Alice/Bob
     ID = "A"
 
@@ -27,41 +27,39 @@ class Client:
 
         # extracting data in json format
         data = r.json()
+
         #  Odebranie Ca, Cb, C
         Ca = data["Ca"]
         Cb = data["Cb"]
         C = data["C"]
 
-        result = unpad(self.decrypt(base64.b64decode(Ca), self.KEY_A),16).decode("ascii")
+        # usunięcie paddingu i rozszyfrowanie klucza sesyjnego
+        result = unpad(self.decrypt(base64.b64decode(Ca), self.KEY_A), 16).decode("ascii")
+        self.KEY_K = bytes(result, "ascii")
 
+        print("Decoded key: ")
         print(result)
-        self.KEY_K = result
-        print("decoded key: ")
 
         return C, Cb
 
+    # TODO uruchomić serwer flaskowy
     def listen(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((self.HOST, self.PORT))
-            s.listen()
-            conn, addr = s.accept()
-            with conn:
-                print('Connected by', addr)
-                while True:
-                    data = conn.recv(1024)
-                    if not data:
-                        break
-                    conn.sendall(data)
+        pass
+
+    def send_to_bob(self, json_in):
+        headers = {'content-type': 'application/json', 'content-length': str(len(json_in))}
+        r = requests.post(self.URL_BOB, json=json_in, headers=headers)
+        print(r.url)
 
     @staticmethod
     def decrypt(c, key, iv=''):
         d_content = AES.new(key, AES.MODE_ECB).decrypt(c)
         return d_content
 
-    @staticmethod
-    def encrypt(m, key, iv=''):
-        e_content = AES.new(key, AES.MODE_ECB).encrypt(m)
-        return e_content
+    def encrypt_using_session(self, m, iv=''):
+        m = pad(m, 16)
+        e_content = AES.new(self.KEY_K, AES.MODE_ECB).encrypt(m)
+        return base64.b64encode(e_content).decode("ascii")
 
     @staticmethod
     def prepare_file(file_path):
@@ -74,7 +72,15 @@ class Client:
 
 def main():
     client = Client()
-    client.get_K()
+    C, Cb = client.get_K()
+    Cm = client.encrypt_using_session(bytes("eloelo", "ascii"))
+    j_dict = {"Cm": Cm,
+              "C": C,
+              "Cb": Cb
+              }
+    json_msg = json.dumps(j_dict)
+
+    client.send_to_bob(json_msg)
 
 
 main()
