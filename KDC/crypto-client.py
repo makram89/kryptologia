@@ -61,6 +61,7 @@ class Client:
         e_content = AES.new(self.KEY_K, AES.MODE_ECB).encrypt(m)
         return base64.b64encode(e_content).decode("ascii")
 
+    # TODO obsłużyć plik i jego zamiane
     @staticmethod
     def prepare_file(file_path):
         file = open(file_path, 'rb')
@@ -70,6 +71,7 @@ class Client:
         return content
 
 
+# TODO Ogólnie odpalanie klienta w 2 trybach -> obecny main wysyła wiadomość i tyle
 def main():
     client = Client()
     C, Cb = client.get_K()
