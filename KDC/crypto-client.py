@@ -1,6 +1,9 @@
 import json
+from sys import argv
+
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from Crypto.Random import get_random_bytes
 import socket
 import requests
 import base64
@@ -8,77 +11,65 @@ import base64
 
 class Client:
     # PORT = 6666
-    URL_BOB = 'http://127.0.0.1:6666/msg/'
-    URL = 'http://localhost:5000/get_key/alice/bob/'
+    URL_BOB = 'http://150.254.79.213:6666/msg/'
 
     KEY_A = bytes("01010101010101010101010101010101", "ascii")
     KEY_K = ""
-    # Alice/Bob
-    ID = "A"
-
-    def __init__(self):
-        pass
+    IV = get_random_bytes(16)
 
     def get_K(self):
-        # request o uzyskanie K
+        try:
+            with open("session.key", "r") as F:
+                keys = json.load(F)
+        except:
+            print("Obtain session key first!")
+            exit(1)
 
-        # sending get request and saving the response as response object
-        r = requests.get(url=self.URL)
-
-        # extracting data in json format
-        data = r.json()
-
-        #  Odebranie Ca, Cb, C
-        Ca = data["Ca"]
-        Cb = data["Cb"]
-        C = data["C"]
-
-        # usunięcie paddingu i rozszyfrowanie klucza sesyjnego
-        result = unpad(self.decrypt(base64.b64decode(Ca), self.KEY_A), 16).decode("ascii")
-        self.KEY_K = bytes(result, "ascii")
-
-        print("Decoded key: ")
-        print(result)
+        self.KEY_K = bytes(keys["key"], "ascii")
+        Cb = keys["Cb"]
+        C = keys["C"]
 
         return C, Cb
-
-    # TODO uruchomić serwer flaskowy
-    def listen(self):
-        pass
 
     def send_to_bob(self, json_in):
         headers = {'content-type': 'application/json', 'content-length': str(len(json_in))}
         r = requests.post(self.URL_BOB, json=json_in, headers=headers)
-        print(r.url)
 
     @staticmethod
-    def decrypt(c, key, iv=''):
-        d_content = AES.new(key, AES.MODE_ECB).decrypt(c)
+    def decrypt(c, key, iv=bytes('', "ascii")):
+        d_content = AES.new(key, AES.MODE_CBC, iv).decrypt(c)
         return d_content
 
-    def encrypt_using_session(self, m, iv=''):
+    def encrypt_using_session(self, m):
         m = pad(m, 16)
-        e_content = AES.new(self.KEY_K, AES.MODE_ECB).encrypt(m)
+        e_content = AES.new(self.KEY_K, AES.MODE_CBC, self.IV).encrypt(m)
         return base64.b64encode(e_content).decode("ascii")
 
-    # TODO obsłużyć plik i jego zamiane
     @staticmethod
     def prepare_file(file_path):
         file = open(file_path, 'rb')
-        #  Plik / block size
-        content = pad(file.read(), 16)
+        content = file.read()
         file.close()
         return content
 
+    # Zwraca bytes w codowaniu base64
+    def get_iv(self):
+        return base64.b64encode(self.IV)
 
-# TODO Ogólnie odpalanie klienta w 2 trybach -> obecny main wysyła wiadomość i tyle
+
 def main():
     client = Client()
     C, Cb = client.get_K()
-    Cm = client.encrypt_using_session(bytes("eloelo", "ascii"))
+    path = argv[1]
+    raw = client.prepare_file(path)
+    Cm = client.encrypt_using_session(raw)
+    Cn = client.encrypt_using_session(bytes(path.split('/')[-1], "ascii"))
+
     j_dict = {"Cm": Cm,
               "C": C,
-              "Cb": Cb
+              "Cb": Cb,
+              "Cn": Cn,
+              "iv": client.get_iv()
               }
     json_msg = json.dumps(j_dict)
 
