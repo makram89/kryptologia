@@ -4,14 +4,14 @@ from sys import argv
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
-import socket
 import requests
 import base64
 
 
 class Client:
     # PORT = 6666
-    URL_BOB = 'http://150.254.79.213:6666/msg/'
+    # URL_BOB = 'http://150.254.79.213:6666/msg/'
+    URL_BOB = 'http://localhost:6666/msg/'
 
     KEY_A = bytes("01010101010101010101010101010101", "ascii")
     KEY_K = ""
@@ -25,14 +25,15 @@ class Client:
             print("Obtain session key first!")
             exit(1)
 
-        self.KEY_K = bytes(keys["key"], "ascii")
-        Cb = keys["Cb"]
+        self.KEY_K = keys["key"].encode("ascii")
         C = keys["C"]
+        Cb = keys["Cb"]
 
         return C, Cb
 
     def send_to_bob(self, json_in):
-        headers = {'content-type': 'application/json', 'content-length': str(len(json_in))}
+        headers = {'content-type': 'application/json',
+                   'content-length': str(len(json_in))}
         r = requests.post(self.URL_BOB, json=json_in, headers=headers)
 
     @staticmethod
@@ -54,7 +55,7 @@ class Client:
 
     # Zwraca bytes w codowaniu base64
     def get_iv(self):
-        return base64.b64encode(self.IV)
+        return base64.b64encode(self.IV).decode('ascii')
 
 
 def main():
@@ -65,15 +66,15 @@ def main():
     Cm = client.encrypt_using_session(raw)
     Cn = client.encrypt_using_session(bytes(path.split('/')[-1], "ascii"))
 
-    j_dict = {"Cm": Cm,
-              "C": C,
-              "Cb": Cb,
-              "Cn": Cn,
-              "iv": client.get_iv()
-              }
+    j_dict = {
+        "C": C,
+        "Cb": Cb,
+        "Cm": client.get_iv() + Cm,
+    }
     json_msg = json.dumps(j_dict)
 
     client.send_to_bob(json_msg)
 
 
-main()
+if __name__ == "__main__":
+    main()

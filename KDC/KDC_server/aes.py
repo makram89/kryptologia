@@ -1,7 +1,7 @@
 from hashlib import md5
 from base64 import b64decode
 from base64 import b64encode
-from Crypto import Random
+from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad as padding
 
@@ -21,17 +21,17 @@ class AESCipher:
     Tested under Python 3 and PyCrypto 2.6.1.
     """
 
-    def __init__(self, key):
+    def __init__(self, key, iv):
         self.key = key
+        self.iv = iv
 
     def encrypt(self, raw):
         raw = padding(raw, 16)
-        cipher = AES.new(self.key, AES.MODE_ECB)
+        cipher = AES.new(self.key, AES.MODE_CBC, self.iv)
         cipher_txt = cipher.encrypt(raw)
         return b64encode(cipher_txt)
 
-    def decrypt(self, enc):
+    def decrypt(self, enc, iv):
         enc = b64decode(enc)
-        iv = enc[:16]
-        cipher = AES.new(self.key, AES.MODE_ECB)
-        return unpad(cipher.decrypt(enc[16:])).decode('utf8')
+        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        return unpad(cipher.decrypt(enc)).decode('ascii')

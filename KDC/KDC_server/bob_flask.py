@@ -9,8 +9,8 @@ app = Flask(__name__)
 BOB_KEY = bytes("10" * 16, 'ascii')
 
 
-def decrypt(c, key, iv=''):
-    d_content = AES.new(key, AES.MODE_ECB).decrypt(c)
+def decrypt(c, key, iv):
+    d_content = AES.new(key, AES.MODE_CBC, iv).decrypt(c)
     return d_content
 
 
@@ -18,17 +18,19 @@ def decrypt(c, key, iv=''):
 def get_msg():
     if request.method == 'POST':
         content = json.loads(request.json)
-        Cb = content["Cb"]
-        Cm = content["Cm"]
-        C = content["C"]
-        Cn = content["Cn"]
+        iv1 = base64.b64decode(content["Cb"][:24])
+        Cb = content["Cb"][24:]
+        C = content["C"][24:]
+        iv2 = base64.b64decode(content["Cm"][:24])
+        Cm = content["Cm"][24:]
 
-        session_key = unpad(decrypt(base64.b64decode(Cb), BOB_KEY), 16).decode("ascii")
-        session_key = bytes(session_key, "ascii")
+        session_key = unpad(decrypt(base64.b64decode(Cb), BOB_KEY, iv1), 16)
+        # session_key = bytes(session_key, "ascii")
 
-        message = unpad(decrypt(base64.b64decode(Cm), session_key), 16)
-        fname = unpad(decrypt(base64.b64decode(Cn), session_key), 16).decode("ascii")
-        sender = unpad(decrypt(base64.b64decode(C), BOB_KEY), 16).decode("ascii")
+        message = unpad(decrypt(base64.b64decode(Cm), session_key, iv2), 16)
+        fname = "test.png"
+        # fname = unpad(decrypt(base64.b64decode(Cn), session_key), 16).decode("ascii")
+        sender = unpad(decrypt(base64.b64decode(C), BOB_KEY, iv1), 16).decode("ascii")
 
         with open(fname, "wb") as F:
             F.write(message)
