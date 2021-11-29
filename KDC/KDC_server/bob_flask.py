@@ -21,18 +21,21 @@ def get_msg():
         iv1 = base64.b64decode(content["Cb"][:24])
         Cb = content["Cb"][24:]
         C = content["C"][24:]
-        iv2 = base64.b64decode(content["Cm"][:24])
-        Cm = content["Cm"][24:]
+        Cm = base64.b64decode(content["Cm"])
+        tag = base64.b64decode(content["tag"])
+        nonce = base64.b64decode(content["nonce"])
+        header = content["header"]
 
         session_key = unpad(decrypt(base64.b64decode(Cb), BOB_KEY, iv1), 16)
         # session_key = bytes(session_key, "ascii")
 
-        message = unpad(decrypt(base64.b64decode(Cm), session_key, iv2), 16)
-        fname = "test.png"
-        # fname = unpad(decrypt(base64.b64decode(Cn), session_key), 16).decode("ascii")
+        cipher = AES.new(session_key, AES.MODE_CCM, nonce=nonce)
+        cipher.update(header.encode('ascii'))
+        message = cipher.decrypt_and_verify(Cm, tag)
+
         sender = unpad(decrypt(base64.b64decode(C), BOB_KEY, iv1), 16).decode("ascii")
 
-        with open(fname, "wb") as F:
+        with open(header, "wb") as F:
             F.write(message)
 
         print("From: ", sender)

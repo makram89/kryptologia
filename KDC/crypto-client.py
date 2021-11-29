@@ -2,7 +2,7 @@ import json
 from sys import argv
 
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
+from Crypto.Util.Padding import pad
 from Crypto.Random import get_random_bytes
 import requests
 import base64
@@ -41,10 +41,15 @@ class Client:
         d_content = AES.new(key, AES.MODE_CBC, iv).decrypt(c)
         return d_content
 
-    def encrypt_using_session(self, m):
-        m = pad(m, 16)
-        e_content = AES.new(self.KEY_K, AES.MODE_CBC, self.IV).encrypt(m)
-        return base64.b64encode(e_content).decode("ascii")
+    def encrypt_using_session(self, header, message):
+        message = pad(message, 16)
+        cipher = AES.new(self.KEY_K, AES.MODE_CCM)
+        cipher.update(header.encode('ascii'))
+        ciphertext, tag = cipher.encrypt_and_digest(message)
+        ciphertext = base64.b64encode(ciphertext).decode("ascii")
+        tag = base64.b64encode(tag).decode("ascii")
+        nonce = base64.b64encode(cipher.nonce).decode("ascii")
+        return ciphertext, tag, nonce
 
     @staticmethod
     def prepare_file(file_path):
@@ -63,13 +68,16 @@ def main():
     C, Cb = client.get_K()
     path = argv[1]
     raw = client.prepare_file(path)
-    Cm = client.encrypt_using_session(raw)
-    Cn = client.encrypt_using_session(bytes(path.split('/')[-1], "ascii"))
+    fname = path.split('/')[-1]
+    Cm, tag, nonce = client.encrypt_using_session(fname, raw)
 
     j_dict = {
         "C": C,
         "Cb": Cb,
-        "Cm": client.get_iv() + Cm,
+        "Cm": Cm,
+        "tag": tag,
+        "nonce": nonce,
+        "header": fname
     }
     json_msg = json.dumps(j_dict)
 
